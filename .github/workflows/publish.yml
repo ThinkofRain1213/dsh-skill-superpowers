@@ -1,0 +1,71 @@
+# Publish to npm on a version tag.
+#
+# Two triggers, because they cover different situations:
+#   - `push: tags v*`   — a human pushed the tag directly
+#   - `workflow_dispatch` — auto-tag.yml called us explicitly
+#
+# auto-tag.yml pushes its tag with GITHUB_TOKEN, and GitHub suppresses the
+# resulting push event to prevent workflow loops, so `push: tags` alone would
+# never fire for the automated path — the dispatch is what makes it work.
+#
+# Authentication is OIDC (`id-token: write`), so no NPM_TOKEN secret is stored:
+# npm trusts this repository's workflow directly ("Trusted Publishing" on the
+# package settings). Provenance is attested for free as part of that.
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      # The dsh filesystem provider is an optional peer, so a plain install
+      # leaves it out; the suite needs it to exercise the real provider.
+      - run: npm install --no-save @deepseek-ai/dsh-skill-filesystem
+
+      - name: Verify before publishing
+        run: |
+          node scripts/generate-artifacts.mjs --check
+          node tests/test-plugin.mjs
+
+      # Two ways this run should be a no-op rather than a red build:
+      #
+      #   - the version is already on npm (a re-run, or a tag pushed twice), and
+      #   - the package is not on npm AT ALL, which means this is the first
+      #     release. npm will not accept an OIDC publish for a package that does
+      #     not exist yet — a trusted publisher can only be attached to an
+      #     existing package, and `npm publish` answers with a bare 404 — so the
+      #     bootstrap release has to be done by hand. See README "发布".
+      - name: Decide whether to publish
+        run: |
+          PKG="$(node -p "require('./package.json').name")"
+          VER="$(node -p "require('./package.json').version")"
+          if npm view "$PKG"@"$VER" version >/dev/null 2>&1; then
+            echo "$PKG@$VER is already on npm, nothing to do"
+          elif ! npm view "$PKG" version >/dev/null 2>&1; then
+            echo "::notice title=First release::'$PKG' is not on npm yet, so OIDC cannot"
+            echo "publish it (npm only allows a trusted publisher on an existing package)."
+            echo "Publish ${VER} once by hand, then configure Trusted Publishing — README '发布'."
+            echo "skip=true" >> "$GITHUB_ENV"
+          fi
+
+      # `npm publish`, never `pnpm publish`: pnpm's packer drops the executable
+      # bit from the shebang scripts under skills/, and the skills invoke those
+      # directly. Verified — see README "发布".
+      - run: npm publish --provenance --access public
+        if: env.skip != 'true'

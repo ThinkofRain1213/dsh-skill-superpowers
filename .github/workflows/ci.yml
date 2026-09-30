@@ -1,0 +1,52 @@
+# CI: every derived artifact must match its source, and the suite must pass.
+# The upstream check runs weekly rather than on every push: it reaches the
+# network, and its failure is a maintenance signal, not a regression.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Node 24. The floor is 22 — the dsh filesystem provider starts its
+      # watcher with `Promise.withResolvers`, which does not exist on 20, and
+      # there the watch throws, `list()` returns a `{candidates, complete}`
+      # page instead of the skill array, and every skill silently disappears.
+      # CI pins the newest line we test on; see package.json "engines".
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The peer is optional at install time; CI installs it so the provider
+      # can actually be imported and exercised.
+      - run: npm install --no-save @deepseek-ai/dsh-skill-filesystem
+
+      - name: Derived artifacts match artifacts.json
+        run: node scripts/generate-artifacts.mjs --check
+
+      - name: Vendored tree matches upstream plus adaptations
+        run: node tests/test-plugin.mjs
+
+      - name: Packing self-check
+        run: npm pack --dry-run
+
+  upstream:
+    # Informational: tells the maintainer upstream moved. Not a merge gate.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Has upstream moved?
+        run: node scripts/check-upstream.mjs

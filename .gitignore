@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Pack artifacts
+*.tgz
+
+# Logs and editor noise
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Environment — never commit local secrets or machine-specific paths
+.env
+.env.*
+.npmrc

@@ -1,0 +1,11 @@
+# Force LF on every text file. A CRLF shebang breaks direct script execution
+# (`/usr/bin/env: 'bash\r': No such file or directory`), and the skills invoke
+# their bundled scripts directly. Windows teammates must not be able to
+# introduce CRLF by checking out the repo.
+* text=auto eol=lf
+
+# Explicitly binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.tgz binary

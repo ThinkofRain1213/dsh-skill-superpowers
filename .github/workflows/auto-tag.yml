@@ -1,0 +1,71 @@
+# Tag a release from the version in package.json, then trigger the publish.
+#
+# Idempotent and self-limiting: it does nothing if the tag already exists, and
+# nothing if that version is already on npm — so pushing unrelated commits to
+# main never re-publishes. To release, bump `version` in package.json and push.
+name: Auto Tag
+
+on:
+  push:
+    branches: [main]
+  # Manual recovery: `gh workflow run auto-tag.yml`. Needed because a tag is not
+  # moved by a later force-push, so after rewriting `main` the existing tag can
+  # be left pointing at a commit that is no longer in history. Re-running this
+  # then re-creates it on the current head. It is also the only way to retry the
+  # publish dispatch if that call failed after the tag was already pushed.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write # dispatching publish.yml needs workflow-dispatch rights
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: ver
+        run: echo "v=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - id: pkg
+        run: echo "name=$(node -p "require('./package.json').name")" >> "$GITHUB_OUTPUT"
+
+      - name: Tag and dispatch the release
+        run: |
+          TAG="${{ steps.ver.outputs.v }}"
+          PKG="${{ steps.pkg.outputs.name }}"
+
+          # Resolve the tag's commit without needing to have fetched tags.
+          REMOTE="${{ github.sha }}"
+          EXISTING="$(git ls-remote --tags origin "refs/tags/$TAG" 2>/dev/null | cut -f1)"
+
+          if [ -n "$EXISTING" ]; then
+            # A tag whose commit is no longer in main's history is stale — this
+            # happens after main is rewritten (e.g. history squashed and force
+            # pushed), because a tag is not moved by a force-push. Treat it as
+            # needing recreation rather than skipping, or a release could point
+            # at a commit nobody can see.
+            if git merge-base --is-ancestor "$EXISTING" "$REMOTE" 2>/dev/null; then
+              echo "tag $TAG already on a commit in history, skip"
+              exit 0
+            fi
+            echo "tag $TAG points at $EXISTING, which is not in history; recreating"
+            git push origin ":refs/tags/$TAG"
+          fi
+
+          if npm view "$PKG"@"${TAG#v}" version >/dev/null 2>&1; then
+            echo "version ${TAG#v} already on npm, skip (bump version to release)"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          # A tag pushed with GITHUB_TOKEN does not fire publish.yml's `push`
+          # trigger (loop prevention), so dispatch it explicitly. `--ref` pins
+          # the run to the tag just pushed, so checkout is the release commit.
+          gh workflow run publish.yml --ref "$TAG"
+        env:
+          GH_TOKEN: ${{ github.token }}

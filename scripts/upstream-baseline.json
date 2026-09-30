@@ -1,0 +1,168 @@
+{
+  "$comment": "What upstream shipped at the recorded pin. check-upstream.mjs diffs the target against THIS, not against our vendored tree, so what we deliberately do not vendor is never reported as upstream news. Regenerate with: node scripts/check-upstream.mjs --record-baseline (it clones the pinned tag). Kept out of package.json because it is maintenance data, not package metadata, and no runtime code reads it.",
+  "harnessDirs": [
+    ".claude-plugin",
+    ".codex-plugin",
+    ".cursor-plugin",
+    ".devin-plugin",
+    ".hermes-plugin",
+    ".kimi-plugin",
+    ".muse-plugin"
+  ],
+  "harnessReferences": [
+    "antigravity-tools.md",
+    "claude-code-tools.md",
+    "codex-tools.md",
+    "gemini-tools.md",
+    "hermes-tools.md",
+    "muse-tools.md",
+    "pi-tools.md"
+  ],
+  "hooks": [
+    "hooks-cursor.json",
+    "hooks.json",
+    "run-hook.cmd",
+    "session-start"
+  ],
+  "skillCount": 15,
+  "skillNames": [
+    "brainstorming",
+    "diagnosing-superpowers",
+    "dispatching-parallel-agents",
+    "executing-plans",
+    "finishing-a-development-branch",
+    "receiving-code-review",
+    "requesting-code-review",
+    "subagent-driven-development",
+    "systematic-debugging",
+    "test-driven-development",
+    "using-git-worktrees",
+    "using-superpowers",
+    "verification-before-completion",
+    "writing-plans",
+    "writing-skills"
+  ],
+  "skillFiles": {
+    "brainstorming": [
+      "SKILL.md",
+      "scripts/frame-template.html",
+      "scripts/helper.js",
+      "scripts/server.cjs",
+      "scripts/start-server.sh",
+      "scripts/stop-server.sh",
+      "spec-document-reviewer-prompt.md",
+      "visual-companion.md"
+    ],
+    "diagnosing-superpowers": [
+      "SKILL.md",
+      "prompts/analyst-common.md",
+      "prompts/cost-and-time.md",
+      "prompts/plan-adherence.md",
+      "prompts/quality-evidence.md",
+      "prompts/repeated-work.md",
+      "prompts/request-conflicts.md",
+      "prompts/scrub-audit.md",
+      "prompts/scrub.md",
+      "prompts/similar-session.md",
+      "prompts/skill-timeline.md",
+      "prompts/stumbles.md",
+      "references/context-safety.md",
+      "references/github-issues.md",
+      "references/redaction-policy.md",
+      "references/session-discovery.md",
+      "templates/bundle-README.md",
+      "templates/case.md",
+      "templates/issue.md",
+      "templates/report.md"
+    ],
+    "dispatching-parallel-agents": [
+      "SKILL.md"
+    ],
+    "executing-plans": [
+      "SKILL.md",
+      "scripts/task-done",
+      "scripts/task-start"
+    ],
+    "finishing-a-development-branch": [
+      "SKILL.md"
+    ],
+    "receiving-code-review": [
+      "SKILL.md"
+    ],
+    "requesting-code-review": [
+      "SKILL.md",
+      "code-reviewer.md"
+    ],
+    "subagent-driven-development": [
+      "SKILL.md",
+      "implementer-prompt.md",
+      "re-review-prompt.md",
+      "scripts/review-package",
+      "scripts/sdd-workspace",
+      "scripts/task-brief",
+      "task-reviewer-prompt.md"
+    ],
+    "systematic-debugging": [
+      "CREATION-LOG.md",
+      "SKILL.md",
+      "condition-based-waiting-example.ts",
+      "condition-based-waiting.md",
+      "defense-in-depth.md",
+      "find-polluter.sh",
+      "root-cause-tracing.md",
+      "test-academic.md",
+      "test-pressure-1.md",
+      "test-pressure-2.md",
+      "test-pressure-3.md"
+    ],
+    "test-driven-development": [
+      "SKILL.md",
+      "writing-good-tests.md"
+    ],
+    "using-git-worktrees": [
+      "SKILL.md"
+    ],
+    "using-superpowers": [
+      "SKILL.md",
+      "references/antigravity-tools.md",
+      "references/claude-code-tools.md",
+      "references/codex-tools.md",
+      "references/gemini-tools.md",
+      "references/hermes-tools.md",
+      "references/muse-tools.md",
+      "references/pi-tools.md"
+    ],
+    "verification-before-completion": [
+      "SKILL.md"
+    ],
+    "writing-plans": [
+      "SKILL.md"
+    ],
+    "writing-skills": [
+      "SKILL.md",
+      "anthropic-best-practices.md",
+      "examples/CLAUDE_MD_TESTING.md",
+      "graphviz-conventions.dot",
+      "persuasion-principles.md",
+      "render-graphs.js",
+      "testing-skills-with-subagents.md"
+    ]
+  },
+  "skillLineCounts": {
+    "brainstorming": 286,
+    "diagnosing-superpowers": 121,
+    "dispatching-parallel-agents": 168,
+    "executing-plans": 374,
+    "finishing-a-development-branch": 226,
+    "receiving-code-review": 206,
+    "requesting-code-review": 96,
+    "subagent-driven-development": 569,
+    "systematic-debugging": 284,
+    "test-driven-development": 331,
+    "using-git-worktrees": 168,
+    "using-superpowers": 66,
+    "verification-before-completion": 121,
+    "writing-plans": 205,
+    "writing-skills": 682
+  }
+}
