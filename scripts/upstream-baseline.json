@@ -1,6 +1,7 @@
 {
   "$comment": "What upstream shipped at the recorded pin. check-upstream.mjs diffs the target against THIS, not against our vendored tree, so what we deliberately do not vendor is never reported as upstream news. Regenerate with: node scripts/check-upstream.mjs --record-baseline (it clones the pinned tag). Kept out of package.json because it is maintenance data, not package metadata, and no runtime code reads it.",
   "harnessDirs": [
+    ".antigravity-plugin",
     ".claude-plugin",
     ".codex-plugin",
     ".cursor-plugin",
@@ -45,12 +46,12 @@
   "skillFiles": {
     "brainstorming": [
       "SKILL.md",
+      "builder-check-prompt.md",
       "scripts/frame-template.html",
       "scripts/helper.js",
       "scripts/server.cjs",
       "scripts/start-server.sh",
       "scripts/stop-server.sh",
-      "spec-document-reviewer-prompt.md",
       "visual-companion.md"
     ],
     "diagnosing-superpowers": [
@@ -149,7 +150,7 @@
     ]
   },
   "skillLineCounts": {
-    "brainstorming": 286,
+    "brainstorming": 226,
     "diagnosing-superpowers": 121,
     "dispatching-parallel-agents": 168,
     "executing-plans": 374,
