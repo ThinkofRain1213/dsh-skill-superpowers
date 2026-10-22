@@ -22,7 +22,7 @@
 //   node scripts/sync-skills.mjs <checkout> [--tag v6.4.2]
 //   node scripts/sync-skills.mjs --check [<checkout>]   # report drift, write nothing
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -100,6 +100,57 @@ const PERSONAL_SKILLS_REPLACEMENT =
   + 'Harness that is `~/.agents/skills/` (cross-runtime alias) or `~/.dsh/skills/`.\n'
   + 'See [dsh-tools.md](../using-superpowers/references/dsh-tools.md).\n'
 
+/**
+ * Upstream's worked example for stress-testing skill documentation is written
+ * against Claude Code: it hard-codes `~/.claude/skills/` and CLAUDE.md. The
+ * example itself is worth keeping — it is the only full worked test campaign in
+ * the tree — but those paths are wrong on dsh and read as advice a dsh user
+ * cannot follow.
+ *
+ * So keep the example and retarget its vocabulary at the cross-runtime names.
+ * `AGENTS.md` and `~/.agents/skills/` are the industry-standard spellings that
+ * Codex, Copilot CLI and Gemini CLI all read, and dsh accepts
+ * `~/.agents/skills/` as an alias too — so the rewritten example stays true for
+ * every harness, rather than being dsh-specific advice.
+ *
+ * The file is renamed as well, so the reference that points at it still
+ * resolves; see RENAMED_REFERENCES.
+ */
+const HARNESS_NEUTRAL_REWRITES = [
+  // Whole config paths first, before any bare-name rule can leave a mixed path
+  // like `~/.claude/AGENTS.md` that exists nowhere.
+  [/~\/\.claude\/skills\//g, '~/.agents/skills/'],
+  [/~\/\.claude\/CLAUDE\.md/g, '~/.agents/AGENTS.md'],
+  [/~\/\.claude\//g, '~/.agents/'],
+  // The instruction file: title, prose, and the example's own filename.
+  [/CLAUDE\.md/g, 'AGENTS.md'],
+  [/CLAUDE_MD_TESTING\.md/g, 'AGENTS_MD_TESTING.md'],
+  // One variant names the vendor instead of the harness.
+  [/Claude\.AI Emphatic Style/g, 'AGENTS.md Emphatic Style'],
+  // "Claude might think it knows..." — the subject is the agent, not a vendor.
+  [/\bClaude might think\b/g, 'an agent might think'],
+  // Bare "Claude Code" in ordinary prose. Consuming the preceding article
+  // matters: upstream writes "the Claude Code layout", and substituting only the
+  // name would yield "the the agent runtime".
+  //
+  // Deliberately NOT a blanket replacement. In a sentence that is *listing*
+  // harnesses, dropping the vendor name loses the reader information — "Claude
+  // Code and Codex" becomes "the agent runtime and Codex". Those places keep the
+  // name, so this rule is anchored to the two shapes upstream actually uses when
+  // it means "the harness generically".
+  [/\b(?:the|a|an)\s+Claude Code\s+(?=layout|session|transcript)/gi, 'the agent runtime '],
+  [/\bClaude Code layout\b/g, 'the agent runtime layout'],
+]
+
+/**
+ * Files vendored under a neutral name, [from, to] relative to the skills root.
+ * Kept separate from the text rewrites so a rename failure is loud rather than
+ * leaving a file whose name no longer matches its contents.
+ */
+const RENAMED_REFERENCES = [
+  ['writing-skills/references/CLAUDE_MD_TESTING.md', 'writing-skills/references/AGENTS_MD_TESTING.md'],
+]
+
 if (!existsSync(join(sourceSkills, 'using-superpowers', 'SKILL.md'))) {
   console.error(`no skills tree at ${sourceSkills}`)
   console.error(`clone it first, e.g. git clone --depth 1 --branch ${upstreamPin(packageRoot).tag} ${upstreamPin(packageRoot).repository}`)
@@ -139,7 +190,15 @@ function listFiles(root) {
  * what lets the upgrade skill verify itself by re-running and comparing.
  */
 function applyAdaptations(root, { log = false } = {}) {
-  const summary = { namespaced: [], platformEntry: false, pruned: [], rewrotePersonalSkills: false, files: 0 }
+  const summary = {
+    namespaced: [],
+    platformEntry: false,
+    pruned: [],
+    rewrotePersonalSkills: false,
+    renamed: [],
+    harnessNeutral: [],
+    files: 0,
+  }
 
   for (const rel of listFiles(root)) {
     if (!rel.endsWith('.md')) continue
@@ -198,6 +257,35 @@ function applyAdaptations(root, { log = false } = {}) {
     }
   }
 
+  // Upstream's worked test campaign hard-codes Claude Code paths and filenames.
+  // Retarget it at the cross-runtime names so every harness it mentions still
+  // resolves. Renames run before the text pass so the write lands on the new
+  // name.
+  for (const [from, to] of RENAMED_REFERENCES) {
+    const source = join(root, from)
+    if (!existsSync(source)) continue
+    renameSync(source, join(root, to))
+    summary.renamed.push(`${from} -> ${to}`)
+  }
+
+  // Our own skills are excluded: they are this package's own prose and may
+  // deliberately name a harness when explaining what upstream assumes.
+  const ownNames = new Set(ownSkillNames(packageRoot))
+  for (const rel of listFiles(root)) {
+    if (!rel.endsWith('.md')) continue
+    if (ownNames.has(rel.split('/')[0])) continue
+    const full = join(root, rel)
+    const before = readFileSync(full, 'utf8')
+    let after = before
+    for (const [pattern, replacement] of HARNESS_NEUTRAL_REWRITES) {
+      after = after.replace(pattern, replacement)
+    }
+    if (after !== before) {
+      writeFileSync(full, after, 'utf8')
+      summary.harnessNeutral.push(rel)
+    }
+  }
+
   // Some packagers and git-on-Windows drop the executable bit, and the skills
   // invoke these scripts directly. Anything with a shebang must be executable.
   for (const rel of listFiles(root)) {
@@ -210,6 +298,8 @@ function applyAdaptations(root, { log = false } = {}) {
   summary.files = listFiles(root).length
   if (log) {
     for (const line of summary.namespaced) console.log(`    namespace stripped: ${line}`)
+    for (const line of summary.renamed) console.log(`    renamed: ${line}`)
+    for (const line of summary.harnessNeutral) console.log(`    harness-neutral: ${line}`)
   }
   return summary
 }

@@ -98,6 +98,13 @@
       "SKILL.md",
       "implementer-prompt.md",
       "re-review-prompt.md",
+      "references/batching.md",
+      "references/cannot-verify.md",
+      "references/final-review.md",
+      "references/fix-loop.md",
+      "references/handling-reports.md",
+      "references/preflight.md",
+      "references/resuming.md",
       "scripts/review-package",
       "scripts/sdd-workspace",
       "scripts/task-brief",
@@ -141,29 +148,32 @@
     ],
     "writing-skills": [
       "SKILL.md",
-      "anthropic-best-practices.md",
-      "examples/CLAUDE_MD_TESTING.md",
-      "graphviz-conventions.dot",
-      "persuasion-principles.md",
-      "render-graphs.js",
-      "testing-skills-with-subagents.md"
+      "references/CLAUDE_MD_TESTING.md",
+      "references/anthropic-best-practices.md",
+      "references/bulletproofing.md",
+      "references/discovery.md",
+      "references/flowcharts.md",
+      "references/graphviz-conventions.dot",
+      "references/persuasion-principles.md",
+      "references/testing-skills-with-subagents.md",
+      "render-graphs.js"
     ]
   },
   "skillLineCounts": {
-    "brainstorming": 226,
+    "brainstorming": 295,
     "diagnosing-superpowers": 121,
     "dispatching-parallel-agents": 168,
-    "executing-plans": 374,
+    "executing-plans": 322,
     "finishing-a-development-branch": 226,
     "receiving-code-review": 206,
     "requesting-code-review": 96,
-    "subagent-driven-development": 569,
+    "subagent-driven-development": 337,
     "systematic-debugging": 284,
     "test-driven-development": 331,
     "using-git-worktrees": 168,
     "using-superpowers": 66,
     "verification-before-completion": 121,
     "writing-plans": 205,
-    "writing-skills": 682
+    "writing-skills": 400
   }
 }
