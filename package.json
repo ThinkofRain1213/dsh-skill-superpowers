@@ -24,10 +24,14 @@
     "dsh-plugin",
     "deepseek-harness",
     "superpowers",
+    "agent-skills",
+    "claude-skills",
     "skills",
     "tdd",
     "brainstorming",
-    "workflow"
+    "workflow",
+    "subagents",
+    "ai-coding-agent"
   ],
   "license": "MIT",
   "author": "minglo",
