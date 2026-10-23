@@ -122,6 +122,12 @@ const HARNESS_NEUTRAL_REWRITES = [
   [/~\/\.claude\/skills\//g, '~/.agents/skills/'],
   [/~\/\.claude\/CLAUDE\.md/g, '~/.agents/AGENTS.md'],
   [/~\/\.claude\//g, '~/.agents/'],
+  // Upstream names the instruction files as a list — "(CLAUDE.md, AGENTS.md,
+  // GEMINI.md, …)" — so the bare rename below would produce "(AGENTS.md,
+  // AGENTS.md, GEMINI.md, …)". Collapse the pair first, in either order. These
+  // must stay ahead of that rename or they never see the original text.
+  [/\bCLAUDE\.md,\s*AGENTS\.md\b/g, 'AGENTS.md'],
+  [/\bAGENTS\.md,\s*CLAUDE\.md\b/g, 'AGENTS.md'],
   // The instruction file: title, prose, and the example's own filename.
   [/CLAUDE\.md/g, 'AGENTS.md'],
   [/CLAUDE_MD_TESTING\.md/g, 'AGENTS_MD_TESTING.md'],
@@ -270,10 +276,18 @@ function applyAdaptations(root, { log = false } = {}) {
 
   // Our own skills are excluded: they are this package's own prose and may
   // deliberately name a harness when explaining what upstream assumes.
+  //
+  // History files are excluded too. A CREATION-LOG.md records how a skill came
+  // to be, in the past tense — "Extracted debugging framework from
+  // `~/.claude/CLAUDE.md`" is a statement about what happened, not advice the
+  // reader can follow. Rewriting the path makes the log false and gives a dsh
+  // user nothing to act on.
+  const HISTORY_FILE = /(^|\/)CREATION-LOG\.md$/
   const ownNames = new Set(ownSkillNames(packageRoot))
   for (const rel of listFiles(root)) {
     if (!rel.endsWith('.md')) continue
     if (ownNames.has(rel.split('/')[0])) continue
+    if (HISTORY_FILE.test(rel)) continue
     const full = join(root, rel)
     const before = readFileSync(full, 'utf8')
     let after = before
@@ -288,11 +302,19 @@ function applyAdaptations(root, { log = false } = {}) {
 
   // Some packagers and git-on-Windows drop the executable bit, and the skills
   // invoke these scripts directly. Anything with a shebang must be executable.
-  for (const rel of listFiles(root)) {
-    const full = join(root, rel)
-    const first = readFileSync(full, 'utf8').split('\n', 1)[0]
-    if (!first.startsWith('#!')) continue
-    if ((statSync(full).mode & 0o111) === 0) execFileSync('chmod', ['+x', full])
+  //
+  // Windows has no `chmod` binary, so this step aborted the whole sync there
+  // with ENOENT — on a tree whose adaptations had already been applied
+  // correctly, which made a successful sync look like a failure. NTFS has no
+  // POSIX mode bits to restore anyway: git's index carries the 100755 and
+  // .gitattributes keeps it. Skip on Windows rather than fake it.
+  if (process.platform !== 'win32') {
+    for (const rel of listFiles(root)) {
+      const full = join(root, rel)
+      const first = readFileSync(full, 'utf8').split('\n', 1)[0]
+      if (!first.startsWith('#!')) continue
+      if ((statSync(full).mode & 0o111) === 0) execFileSync('chmod', ['+x', full])
+    }
   }
 
   summary.files = listFiles(root).length

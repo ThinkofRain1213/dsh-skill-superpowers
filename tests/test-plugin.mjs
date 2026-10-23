@@ -230,7 +230,15 @@ test('a host with no skills root degrades without failing activation', async () 
   assert.ok(Array.isArray(logs.warn))
 })
 
-test('scripts the skills invoke directly keep their executable bit', () => {
+test('scripts the skills invoke directly keep their executable bit', (t) => {
+  // NTFS has no POSIX mode bits: `statSync().mode & 0o111` is always 0 there,
+  // whatever the file is, so asserting on it tests the host rather than the
+  // package. The bit that matters on Windows is git's, and the index plus
+  // .gitattributes carry it. Skip with a reason instead of failing.
+  if (process.platform === 'win32') {
+    t.skip('NTFS has no POSIX mode bits; git carries the 100755 instead')
+    return
+  }
   const expected = [
     'brainstorming/scripts/start-server.sh',
     'subagent-driven-development/scripts/review-package',
@@ -288,6 +296,34 @@ test('no skill still carries a Claude Code namespace reference', () => {
   assert.match(mapping, /Names carry no\s+`superpowers:` prefix/)
   const syncSkill = readFileSync(join(packageRoot, 'skills/superpower-sync-upstream/SKILL.md'), 'utf8')
   assert.match(syncSkill, /is a hard error/)
+})
+
+test('the harness-neutral pass does not leave a duplicated instruction-file name', () => {
+  // Upstream names the instruction files as a list: "(CLAUDE.md, AGENTS.md,
+  // GEMINI.md, …)". The pass rewrites CLAUDE.md to AGENTS.md, which turns that
+  // list into "(AGENTS.md, AGENTS.md, …)" unless the duplicate is collapsed
+  // first. Both files below shipped that way once; assert on the rendered text
+  // rather than on the rewrite rules so a future rule reordering cannot bring
+  // it back unnoticed.
+  for (const rel of [
+    'skills/using-superpowers/SKILL.md',
+    'skills/diagnosing-superpowers/prompts/request-conflicts.md',
+  ]) {
+    const text = readFileSync(join(packageRoot, rel), 'utf8')
+    assert.ok(
+      !/AGENTS\.md,\s*AGENTS\.md/.test(text),
+      `${rel} repeats AGENTS.md in one list`,
+    )
+  }
+})
+
+test('CREATION-LOG.md keeps the paths it recorded, not rewritten ones', () => {
+  // A creation log is history: "Extracted debugging framework from
+  // `~/.claude/CLAUDE.md`" says what happened. Retargeting that path would
+  // make the record false, so the harness-neutral pass must skip these files.
+  const log = readFileSync(join(packageRoot, 'skills/systematic-debugging/CREATION-LOG.md'), 'utf8')
+  assert.match(log, /\.claude\/CLAUDE\.md/, 'the recorded path should survive untouched')
+  assert.ok(!/\.agents\/AGENTS\.md/.test(log), 'history should not be retargeted')
 })
 
 // Watching is the provider's own default (true) and the plugin deliberately does
