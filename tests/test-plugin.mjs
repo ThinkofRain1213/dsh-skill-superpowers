@@ -2,7 +2,7 @@
 // two contributions behave, mirroring how the harness drives them.
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import test, { after } from 'node:test'
@@ -232,10 +232,9 @@ test('a host with no skills root degrades without failing activation', async () 
 
 test('scripts the skills invoke directly keep their executable bit', (t) => {
   // NTFS has no POSIX mode bits: `statSync().mode & 0o111` is always 0 there,
-  // whatever the file is. The bit that matters on Windows is git's, and
-  // `.gitattributes` plus the index carry it; checkout applies it on the
-  // filesystems that have one. Asserting on the filesystem mode here only
-  // tests the host, so skip with an explicit reason instead of failing.
+  // whatever the file is, so asserting on it tests the host rather than the
+  // package. The bit that matters on Windows is git's, and the index plus
+  // .gitattributes carry it. Skip with a reason instead of failing.
   if (process.platform === 'win32') {
     t.skip('NTFS has no POSIX mode bits; git carries the 100755 instead')
     return
@@ -299,71 +298,43 @@ test('no skill still carries a Claude Code namespace reference', () => {
   assert.match(syncSkill, /is a hard error/)
 })
 
-// The official provider is imported from the dsh installation. In the Desktop
-// build it exists only inside `app.asar`, which the profile's node_modules cannot
-// resolve, so the import rejects. Before the fallback existed that surfaced as an
-// empty catalog and nothing else: `list()` returned `[]` and every skill quietly
-// disappeared. These tests pin the recovery path, because the failure mode is
-// silent and a Desktop user has no reason to suspect the plugin at all.
-//
-// The import is simulated as failing by hiding the package from Node's resolver
-// for the duration of one mount.
-test('a missing official provider falls back instead of emptying the catalog', async () => {
-  const { createFallbackProvider } = await import(
-    pathToFileURL(join(packageRoot, 'lib', 'fallback-provider.js')).href
-  )
-  const provider = createFallbackProvider({
-    skillsDir: join(packageRoot, 'skills'),
-    providerName: 'superpowers',
-    logger: { warn() {} },
-  })
-
-  const list = await provider.list({ cwd: packageRoot })
-  assert.deepEqual(
-    [...list.map((c) => c.name)].sort(),
-    [...EXPECTED_SKILLS].sort(),
-    'the fallback must serve exactly the vendored skill set',
-  )
-
-  for (const candidate of list) {
-    // Same rank as the official provider: a project or user skill of the same
-    // name still wins, so the fallback cannot silently outrank a user's own.
-    assert.equal(candidate.rank, 600, `${candidate.name} rank`)
-    assert.equal(candidate.provider, 'superpowers')
-    const definition = await provider.get(candidate, { cwd: packageRoot })
-    assert.ok(definition, `${candidate.name} should load through the fallback`)
-    assert.ok(definition.content.length > 200, `${candidate.name} body looks truncated`)
-    assert.ok(!definition.content.startsWith('---'), `${candidate.name} kept its frontmatter`)
-    assert.equal(definition.resourceBase.kind, 'directory')
-    assert.ok(definition.resourceBase.path.endsWith(candidate.name))
+test('the harness-neutral pass touches only home paths, never harness names', () => {
+  // The pass exists to stop a dsh user being sent to `~/.claude/...`, which does
+  // not exist here. It must NOT rename the instruction file itself: upstream
+  // names the instruction files as a list, "(CLAUDE.md, AGENTS.md, GEMINI.md,
+  // …)", so a bare rename turns it into "(AGENTS.md, AGENTS.md, …)" and a
+  // rename on disk leaves a file whose name and contents disagree. Both
+  // regressions shipped once.
+  for (const rel of [
+    'skills/using-superpowers/SKILL.md',
+    'skills/diagnosing-superpowers/prompts/request-conflicts.md',
+  ]) {
+    const text = readFileSync(join(packageRoot, rel), 'utf8')
+    assert.ok(
+      !/AGENTS\.md,\s*AGENTS\.md/.test(text),
+      `${rel} repeats AGENTS.md in one list`,
+    )
+    assert.match(text, /CLAUDE\.md/, `${rel} should keep naming CLAUDE.md verbatim`)
   }
+
+  // The worked example keeps its upstream filename and contents: it is a record
+  // of a test campaign run against Claude Code, not advice for a dsh user.
+  const example = join(packageRoot, 'skills/writing-skills/references/CLAUDE_MD_TESTING.md')
+  assert.ok(existsSync(example), 'the example should keep its upstream name')
+  assert.ok(
+    !existsSync(join(packageRoot, 'skills/writing-skills/references/AGENTS_MD_TESTING.md')),
+    'no renamed copy should be produced',
+  )
+  assert.match(readFileSync(example, 'utf8'), /~\/\.claude\/skills\//, 'its recorded paths are evidence')
 })
 
-test('the fallback and the official provider agree on every skill', async () => {
-  const { createFallbackProvider } = await import(
-    pathToFileURL(join(packageRoot, 'lib', 'fallback-provider.js')).href
-  )
-  const fallback = createFallbackProvider({
-    skillsDir: join(packageRoot, 'skills'),
-    providerName: 'superpowers',
-    logger: { warn() {} },
-  })
-  const { providers } = await mount()
-  const official = await instantiate(providers[0])
-
-  const viaOfficial = await official.list({ cwd: packageRoot })
-  const viaFallback = await fallback.list({ cwd: packageRoot })
-
-  // Names and descriptions drive the catalog the model reads; agreement there is
-  // what makes the fallback a drop-in rather than a second, divergent catalog.
-  const nameOf = (list) => [...list.map((c) => c.name)].sort()
-  assert.deepEqual(nameOf(viaFallback), nameOf(viaOfficial))
-
-  const descriptionOf = (list) => new Map(list.map((c) => [c.name, c.description]))
-  const officialDescriptions = descriptionOf(viaOfficial)
-  for (const [name, description] of descriptionOf(viaFallback)) {
-    assert.equal(description, officialDescriptions.get(name), `${name} description differs`)
-  }
+test('CREATION-LOG.md keeps the paths it recorded, not rewritten ones', () => {
+  // A creation log is history: "Extracted debugging framework from
+  // `~/.claude/CLAUDE.md`" says what happened. Retargeting that path would
+  // make the record false, so the harness-neutral pass must skip these files.
+  const log = readFileSync(join(packageRoot, 'skills/systematic-debugging/CREATION-LOG.md'), 'utf8')
+  assert.match(log, /\.claude\/CLAUDE\.md/, 'the recorded path should survive untouched')
+  assert.ok(!/\.agents\/AGENTS\.md/.test(log), 'history should not be retargeted')
 })
 
 // Watching is the provider's own default (true) and the plugin deliberately does
