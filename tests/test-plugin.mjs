@@ -2,7 +2,7 @@
 // two contributions behave, mirroring how the harness drives them.
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import test, { after } from 'node:test'
@@ -298,13 +298,13 @@ test('no skill still carries a Claude Code namespace reference', () => {
   assert.match(syncSkill, /is a hard error/)
 })
 
-test('the harness-neutral pass does not leave a duplicated instruction-file name', () => {
-  // Upstream names the instruction files as a list: "(CLAUDE.md, AGENTS.md,
-  // GEMINI.md, …)". The pass rewrites CLAUDE.md to AGENTS.md, which turns that
-  // list into "(AGENTS.md, AGENTS.md, …)" unless the duplicate is collapsed
-  // first. Both files below shipped that way once; assert on the rendered text
-  // rather than on the rewrite rules so a future rule reordering cannot bring
-  // it back unnoticed.
+test('the harness-neutral pass touches only home paths, never harness names', () => {
+  // The pass exists to stop a dsh user being sent to `~/.claude/...`, which does
+  // not exist here. It must NOT rename the instruction file itself: upstream
+  // names the instruction files as a list, "(CLAUDE.md, AGENTS.md, GEMINI.md,
+  // …)", so a bare rename turns it into "(AGENTS.md, AGENTS.md, …)" and a
+  // rename on disk leaves a file whose name and contents disagree. Both
+  // regressions shipped once.
   for (const rel of [
     'skills/using-superpowers/SKILL.md',
     'skills/diagnosing-superpowers/prompts/request-conflicts.md',
@@ -314,7 +314,18 @@ test('the harness-neutral pass does not leave a duplicated instruction-file name
       !/AGENTS\.md,\s*AGENTS\.md/.test(text),
       `${rel} repeats AGENTS.md in one list`,
     )
+    assert.match(text, /CLAUDE\.md/, `${rel} should keep naming CLAUDE.md verbatim`)
   }
+
+  // The worked example keeps its upstream filename and contents: it is a record
+  // of a test campaign run against Claude Code, not advice for a dsh user.
+  const example = join(packageRoot, 'skills/writing-skills/references/CLAUDE_MD_TESTING.md')
+  assert.ok(existsSync(example), 'the example should keep its upstream name')
+  assert.ok(
+    !existsSync(join(packageRoot, 'skills/writing-skills/references/AGENTS_MD_TESTING.md')),
+    'no renamed copy should be produced',
+  )
+  assert.match(readFileSync(example, 'utf8'), /~\/\.claude\/skills\//, 'its recorded paths are evidence')
 })
 
 test('CREATION-LOG.md keeps the paths it recorded, not rewritten ones', () => {
