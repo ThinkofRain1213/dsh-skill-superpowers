@@ -52,9 +52,6 @@ const EXPECTED_SKILLS = [
   'verification-before-completion',
   'writing-plans',
   'writing-skills',
-  // This adapter's own skills (live natively in skills/).
-  'superpower-monitor-upstream',
-  'superpower-sync-upstream',
   // artifacts:expected-skills:end
 ]
 
@@ -266,13 +263,10 @@ test('the plugin leaves watching to the provider default', async () => {
 
 test('no skill still carries a Claude Code namespace reference', () => {
   // The adapter's strip pass rewrites every `superpowers:<name>` cross-reference
-  // to the bare DSH skill name. Two files are intentionally exempt:
-  //   - the tool mapping, which explains that no such prefix exists on dsh;
-  //   - the maintenance skill, which cites `superpowers:brainstorming` as the
-  //     exact call that dsh rejects.
+  // to the bare DSH skill name. The tool mapping is intentionally exempt: it
+  // explains that no such prefix exists on dsh, so mentioning one is the point.
   const exempt = new Set([
     'skills/using-superpowers/references/dsh-tools.md',
-    'skills/superpower-sync-upstream/SKILL.md',
   ])
   let out = ''
   try {
@@ -291,11 +285,9 @@ test('no skill still carries a Claude Code namespace reference', () => {
     .filter((rel) => !exempt.has(rel))
   assert.deepEqual(offenders, [], `these files still reference superpowers: ${offenders.join(', ')}`)
 
-  // Exempt files must be explanatory, not an instruction to call a prefixed name.
+  // The exempt file must be explanatory, not an instruction to call a prefixed name.
   const mapping = readFileSync(join(packageRoot, 'skills/using-superpowers/references/dsh-tools.md'), 'utf8')
   assert.match(mapping, /Names carry no\s+`superpowers:` prefix/)
-  const syncSkill = readFileSync(join(packageRoot, 'skills/superpower-sync-upstream/SKILL.md'), 'utf8')
-  assert.match(syncSkill, /is a hard error/)
 })
 
 test('the harness-neutral pass touches only home paths, never harness names', () => {
