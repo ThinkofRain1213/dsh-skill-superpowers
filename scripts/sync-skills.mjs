@@ -48,10 +48,12 @@ const MAPPING_REL = 'using-superpowers/references/dsh-tools.md'
 /**
  * Files whose prose deliberately *mentions* the Claude Code namespace and must
  * therefore be exempt from the strip: the tool mapping explains that no such
- * prefix exists, and this adapter's own skill cites `superpowers:brainstorming`
- * as the error case. Stripping either would invert its meaning.
+ * prefix exists, so stripping it would invert its meaning.
+ *
+ * Maintenance guides used to live under `skills/` and needed the same exemption.
+ * They moved to `docs/`, which this pass never walks, so the set is down to one.
  */
-const NAMESPACE_EXEMPT = new Set([MAPPING_REL, 'superpower-sync-upstream/SKILL.md', 'superpower-monitor-upstream/SKILL.md'])
+const NAMESPACE_EXEMPT = new Set([MAPPING_REL])
 /** Claude Code's namespace reference, which dsh's name grammar rejects. */
 const NAMESPACE = /superpowers:([a-z0-9][a-z0-9-]*)/g
 
